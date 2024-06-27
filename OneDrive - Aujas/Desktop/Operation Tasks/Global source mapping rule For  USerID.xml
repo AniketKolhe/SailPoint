@@ -1,0 +1,115 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule created="1708008551887" id="0a2e0e168da31e3a818dad3e35cf1760" language="beanshell" modified="1709552446039" name="Global Rule - RiteAid - IdentityAttribute -RACF- primary Id" type="IdentityAttribute">
+  <Description>Identity attribute rules are used when the value is not simply a copy of an application account attribute value.  A transformation may be necessary on the account attribute, or several account attributes may need to be combined to produce the identity attribute.
+
+    This rule can be called in two ways: as a global mapping rule and an application mapping rule.  A global mapping rule is called whenever the identity is refreshed.  The rule can look at any account attributes.  An application mapping rule is called only when the identity contains an account link for that application, this link is passed in the "link" argument which is not passed in global mapping rules.</Description>
+  <Signature returnType="String">
+    <Inputs>
+      <Argument name="log" type="org.apache.commons.logging.Log">
+        <Description>
+          The log object associated with the SailPointContext.
+        </Description>
+      </Argument>
+      <Argument name="context" type="sailpoint.api.SailPointContext">
+        <Description>
+          A sailpoint.api.SailPointContext object that can be used to query the database if necessary.
+        </Description>
+      </Argument>
+      <Argument name="environment" type="Map">
+        <Description>
+          Arguments passed to the aggregation or refresh task.
+        </Description>
+      </Argument>
+      <Argument name="identity">
+        <Description>
+          The Identity object that represents the user
+          that is being aggregated.
+        </Description>
+      </Argument>
+      <Argument name="attributeDefinition">
+        <Description>
+          The AttributeDefinition object for this attribute.
+        </Description>
+      </Argument>
+      <Argument name="link">
+        <Description>
+          The Link object from the Identity, if this is an application
+          mapping rule.  For global mapping rules this will be void.
+        </Description>
+      </Argument>
+      <Argument name="attributeSource">
+        <Description>
+          The AttributeSource object.
+        </Description>
+      </Argument>
+      <Argument name="oldValue">
+        <Description>
+          The original value of the application account attribute.
+        </Description>
+      </Argument>
+    </Inputs>
+    <Returns>
+      <Argument name="attributeValue">
+        <Description>
+          The value of the attribute that should be populated.
+          The rule should return this value.
+        </Description>
+      </Argument>
+    </Returns>
+  </Signature>
+  <Source>
+
+  import sailpoint.object.*;
+  import java.util.*;
+
+
+  Custom custom = context.getObjectByName(Custom.class, "Custom - RiteAid - Users with More than one primary RACF");
+
+  List list = custom.getList("Identity Usernames");
+  String identityName = String.valueOf(identity.getName());  
+
+  if(!list.contains(identityName)){
+
+    List userIDs = new ArrayList(); // Use generics for ArrayList
+
+    List links = identity.getLinks(); // Avoid variable shadowing
+
+    for (Link link : links) {
+      if ("RACF".equalsIgnoreCase(link.getApplicationName())) { // Use  for logical AND
+        String userId = (String) link.getAttribute("USER_ID");
+        if (userId != null) {
+          userIDs.add(userId);
+        }
+      }
+    }
+
+
+    if (userIDs.isEmpty()) {
+      return "";
+    } else if (userIDs.size() == 1) {
+      return userIDs.get(0); // Return the only userID
+    } else {
+      String primaryUserId = null;
+      for (Link link : links) { // Iterate through links to find the primary user ID
+        if (link != null &amp;&amp; "RACF".equals(link.getApplicationName()) &amp;&amp; !link.isDisabled()) { // Use equals for string comparison
+          String data = (String) link.getAttribute("DATA"); // Cast attribute to String
+          if (data != null &amp;&amp; !data.contains("AID -")) {
+            primaryUserId = (String) link.getAttribute("USER_ID");
+            return primaryUserId;
+            break; // Once primary userID is found, break the loop
+          }
+        }
+      }
+
+      if (primaryUserId != null) {
+        return primaryUserId; // Return the primary user ID
+      } else {
+        return ""; // If primary user ID not found, return empty string
+      }
+    }
+
+  }
+
+  </Source>
+</Rule>
